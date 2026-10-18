@@ -8,7 +8,7 @@
 <style>
 :root{--bg:#080b0b;--panel:#101715;--ink:#e3e8df;--muted:#9ca79d;--red:#b32e38;--green:#9ab89a}
 *{box-sizing:border-box}html,body{margin:0;min-height:100%;background:var(--bg);color:var(--ink);font-family:Georgia,'Times New Roman',serif}body{overflow-x:hidden}
-button{font:inherit;color:var(--ink);background:#151d19;border:1px solid #59675b;padding:13px 15px;min-height:46px;cursor:pointer;transition:.2s}button:hover{background:#253128;border-color:#a3b59f}button:active{transform:scale(.98)}button:disabled{opacity:.4;cursor:not-allowed}
+button{touch-action:manipulation;pointer-events:auto;position:relative;z-index:2;font:inherit;color:var(--ink);background:#151d19;border:1px solid #59675b;padding:13px 15px;min-height:46px;cursor:pointer;transition:.2s}button:hover{background:#253128;border-color:#a3b59f}button:active{transform:scale(.98)}button:disabled{opacity:.4;cursor:not-allowed}
 #app{min-height:100svh;position:relative;overflow:hidden;background:radial-gradient(ellipse at 50% 35%,#1b2921 0,#0b100e 48%,#030505 100%)}
 .noise{pointer-events:none;position:fixed;inset:0;z-index:20;opacity:.07;background-image:url("data:image/svg+xml,%3Csvg viewBox='0 0 180 180' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='.55'/%3E%3C/svg%3E");animation:grain .22s steps(2) infinite}
 @keyframes grain{0%{transform:translate(0,0)}50%{transform:translate(1%,-1%)}100%{transform:translate(-1%,1%)}}
@@ -113,7 +113,7 @@ function lockedChapter(n){showToast('ГЛАВА '+n+' ПОКА ЗАКРЫТА. �
 function settings(){state.settings.sound=!state.settings.sound;showToast(state.settings.sound?'Звук включён':'Звук выключен');if(!state.settings.sound)stopAllAudio();else startAmbient()}
 function artFor(scene){const a=$('sceneArt');a.className='scene-art '+(scene.startsWith('lab2_')?'lab':['forest','porch'].includes(scene)?'forest':['inside','wood','fire','sleep'].includes(scene)?'room':['parallel','escape'].includes(scene)?'parallel':'lab');a.innerHTML='';if(['forest','porch'].includes(scene)){for(let i=0;i<10;i++){let t=document.createElement('div');t.className='silhouette';t.style.cssText=`--w:${25+i*4}px;--h:${45+(i*17)%60}%;left:${i*11-4}%`;a.append(t)}let f=document.createElement('div');f.className='fog';a.append(f);if(scene==='porch'){let c=document.createElement('div');c.className='cabin';c.style.cssText='width:44%;height:65%;bottom:0';c.innerHTML='<div class="win"></div><div class="win win2"></div>';a.append(c)}}else if(['inside','wood','fire','sleep','parallel'].includes(scene)){a.innerHTML='<div class="floor"></div><div class="windowframe"></div><div class="fireplace">'+(scene==='fire'?'<div class="flame"></div>':'')+'</div>';if(scene==='parallel'){let s=document.createElement('div');s.className='shadowperson';a.append(s);if(state.windowsOpen){let w=document.createElement('div');w.style.cssText='position:absolute;inset:0;background:#5c101a22;animation:alarm .25s infinite';a.append(w)}}else if(scene==='wood'){a.innerHTML+='<div class="wood"></div>'}}else if(scene==='lab'){a.innerHTML='<div class="redlight"></div><div class="labdoor"></div>'}}
 function render(){sceneToken++;const s=state.scene;const d=copy[s]||copy.forest;$('chapterLabel').textContent=s.startsWith('lab2_')?'ГЛАВА 2 / THE LAB':'ГЛАВА 1 / '+(s==='lab'?'ОБЪЕКТ 09':'ДОМ ЛЕСНИКА');$('objective').textContent=d.objective;$('sceneTitle').textContent=d.title;$('story').textContent=d.text;$('story').style.filter='none';$('sceneArt').style.filter='none';$('note').classList.add('hidden');artFor(s);const actions=$('actions');actions.innerHTML='';
-const add=(label,fn,disabled=false)=>{const b=document.createElement('button');b.textContent=label;b.disabled=disabled;b.onclick=fn;actions.append(b)};
+const add=(label,fn,disabled=false)=>{const b=document.createElement('button');b.type='button';b.textContent=label;b.disabled=disabled;b.addEventListener('click',function(ev){ev.preventDefault();ev.stopPropagation();try{fn()}catch(err){console.error('Ошибка кнопки:',err);showToast('Ошибка действия. Открой игру заново и попробуй ещё раз.')}});actions.append(b)};
 const go=(scene)=>{state.scene=scene;save();render();if(['sleep','parallel','escape','lab'].includes(scene))scare(scene)};
 if(s==='forest'){add('Идти по тропе',()=>{go('porch');playNote([392,523,440],.1)});add('Осмотреть следы',()=>{state.notes++;showLog('Следы босых ног идут из леса к дому. Обратно следов нет.');playNote([160,155],.3)})}
 if(s==='porch'){add('Толкнуть дверь',()=>go('inside'));add('Обойти дом',()=>{state.notes++;showLog('На задней стене мелом написано: «ОН СЧИТАЕТ ОКНА».');scare('small')})}
@@ -161,6 +161,16 @@ function stopAllAudio(){stopMusicOnly();if(audioCtx){try{audioCtx.suspend()}catc
 window.addEventListener('pagehide',save);
 window.addEventListener('keydown',e=>{if(e.key==='Escape'&&!$('game').classList.contains('hidden')){save();$('game').classList.add('hidden');$('menu').classList.remove('hidden')}});
 $('continueBtn').disabled=!load();
+// Expose menu handlers and attach explicit touch-friendly listeners as a fallback.
+Object.assign(window,{continueGame,newGame,startChapter,lockedChapter,settings});
+document.querySelectorAll('#menu button').forEach((button)=>{
+  button.type='button';
+  button.style.touchAction='manipulation';
+  button.addEventListener('click',()=>{}, {passive:true});
+});
+window.addEventListener('error',function(){
+  try{showToast('Ошибка игры: обнови страницу. Если повторится — пришли скриншот.')}catch(_e){}
+});
 })();
 </script>
 </body>
